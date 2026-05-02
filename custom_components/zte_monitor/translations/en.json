@@ -1,0 +1,18 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "ZTE Monitor Configuration",
+        "data": {
+          "host": "Router IP Address",
+          "username": "Username",
+          "password": "Password",
+          "model": "Router Model"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to router. Check IP and credentials."
+    }
+  }
+}
