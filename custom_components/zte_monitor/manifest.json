@@ -1,0 +1,13 @@
+{
+  "domain": "zte_monitor",
+  "name": "ZTE Monitor HA",
+  "codeowners": ["@你的GitHub用户名"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/你的GitHub用户名/ZTE_monitor_HA",
+  "integration_type": "hub",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/你的GitHub用户名/ZTE_monitor_HA/issues",
+  "requirements": ["requests"],
+  "version": "1.0.0"
+}
