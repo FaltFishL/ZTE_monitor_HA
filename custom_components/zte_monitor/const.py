@@ -15,7 +15,7 @@ CONF_SCAN_ROUTER_DETAILS: Final = "scan_router_details"
 # ── 默认值 ──
 DEFAULT_HOST: Final = "192.168.5.1"
 DEFAULT_USERNAME: Final = "admin"
-DEFAULT_MODEL: Final = "SR7410"
+DEFAULT_MODEL: Final = "SR7410"  # 默认型号：ZTE BE7200 Pro+
 DEFAULT_REUSE_SESSION: Final = True
 DEFAULT_SCAN_WAN: Final = True
 DEFAULT_SCAN_ROUTER_DETAILS: Final = True
