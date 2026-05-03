@@ -40,8 +40,8 @@ class ZTEMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
                 vol.Required(CONF_MODEL, default=DEFAULT_MODEL): vol.In([
-                    "SR7410",    # ZTE BE7200 Pro+ — 实测通过
-                    "SR1010",    # ZTE ZXSLC SR1010 — 实测通过
+                    "SR7410",
+                    "SR1010",
                 ]),
             }),
             errors=errors,
