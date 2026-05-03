@@ -3,7 +3,6 @@ from typing import Final
 
 DOMAIN: Final = "zte_monitor"
 
-# ── 配置键 ──
 CONF_HOST: Final = "host"
 CONF_USERNAME: Final = "username"
 CONF_PASSWORD: Final = "password"
@@ -12,21 +11,18 @@ CONF_REUSE_SESSION: Final = "reuse_session"
 CONF_SCAN_WAN: Final = "scan_wan"
 CONF_SCAN_ROUTER_DETAILS: Final = "scan_router_details"
 
-# ── 默认值 ──
 DEFAULT_HOST: Final = "192.168.5.1"
 DEFAULT_USERNAME: Final = "admin"
-DEFAULT_MODEL: Final = "SR7410"  # ZTE BE7200 Pro+
+DEFAULT_MODEL: Final = "SR7410"
 DEFAULT_REUSE_SESSION: Final = True
 DEFAULT_SCAN_WAN: Final = True
 DEFAULT_SCAN_ROUTER_DETAILS: Final = True
 
-# ── 轮询间隔 ──
 UPDATE_INTERVAL_FAST: Final = 30
 UPDATE_INTERVAL_NORMAL: Final = 60
 UPDATE_INTERVAL_SLOW: Final = 120
 SESSION_MAX_AGE: Final = 300
 
-# ── SR7410/E2631 的 API（vueData 类型）──
 API_DEFINITIONS = [
     ("home_device",   "vueData",     "vue_home_device_data",       {}),
     ("wan_info",      "vueData",     "home_internetreg_lua",       {}),
