@@ -9,7 +9,7 @@ from .const import (
 from .coordinator import ZTEMonitorCoordinator
 from .zteclient.zte_client import ZTERouterClient
 
-PLATFORMS = ["sensor", "device_tracker", "switch"]
+PLATFORMS = ["sensor", "device_tracker"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
