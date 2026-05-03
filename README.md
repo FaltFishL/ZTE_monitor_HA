@@ -17,12 +17,12 @@
 ## 安装（HACS 自定义仓库）
 
 1. HACS → 集成 → 右上角 ⋮ → 自定义仓库
-2. 仓库地址：`https://github.com/你的用户名/ZTE_monitor_HA`
+2. 仓库地址：`https://github.com/FaltFishL/ZTE_monitor_HA`
 3. 类别：Integration
 4. 搜索 "ZTE Monitor HA" → 下载 → 重启 Home Assistant
 
 ## 支持的型号
 
-- ZTE SR7410（BE7200 Pro+）— 实测通过
-- ZTE ZXSLC SR1010（实测）
+- ZTE ZXSLC SR7410（BE7200 Pro+）
+- ZTE ZXSLC SR1010（星云Max）
 - 其他基于 Vue.js 接口的新款 ZTE 路由器
