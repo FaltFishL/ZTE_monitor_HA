@@ -1,8 +1,3 @@
-"""
-ZTE Router Client — 与 zte_tracker SR7410 源码一致
-=====================================================
-三步登录 + 全部 10 个 API + 完整设备数据（含实时速率和累计流量）
-"""
 import hashlib
 import json as _json
 import time
@@ -13,7 +8,7 @@ import requests
 
 
 def _format_bytes(b: int) -> str:
-    """字节数 → 人类可读字符串"""
+    """Bytes to human-readable string."""
     if b < 1024:
         return f"{b} B"
     elif b < 1024 * 1024:
@@ -25,7 +20,7 @@ def _format_bytes(b: int) -> str:
 
 
 class ZTERouterClient:
-    """ZTE 路由器 HTTP 客户端"""
+    """ZTE Router HTTP Client"""
 
     def __init__(
         self,
@@ -70,9 +65,9 @@ class ZTERouterClient:
     def _sha256(text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()
 
-    # ═══════════════════════════════════════════════════════
-    # 登录
-    # ═══════════════════════════════════════════════════════
+    # ============================================================
+    # Login
+    # ============================================================
     def login(self) -> bool:
         self._login_token = ""
         self._session_token = ""
@@ -96,7 +91,11 @@ class ZTERouterClient:
         try:
             r = self.sess.get(
                 f"{self.base}/",
-                params={"_type": "loginData", "_tag": "login_token", "_": self._guid()},
+                params={
+                    "_type": "loginData",
+                    "_tag": "login_token",
+                    "_": self._guid(),
+                },
                 headers={"Referer": f"{self.base}/"},
                 timeout=10,
             )
@@ -159,15 +158,18 @@ class ZTERouterClient:
 
     def ensure_auth(self) -> bool:
         from ..const import SESSION_MAX_AGE
+
         if self.reuse_session and self._sid:
             if time.time() - self._login_time < SESSION_MAX_AGE:
                 return True
         return self.login()
 
-    # ═══════════════════════════════════════════════════════
-    # API 调用
-    # ═══════════════════════════════════════════════════════
-    def call_api(self, _type: str, _tag: str, **extra) -> Optional[requests.Response]:
+    # ============================================================
+    # API calls
+    # ============================================================
+    def call_api(
+        self, _type: str, _tag: str, **extra
+    ) -> Optional[requests.Response]:
         params = {"_type": _type, "_tag": _tag, "_": self._guid()}
         params.update(extra)
         try:
@@ -180,11 +182,12 @@ class ZTERouterClient:
         except requests.RequestException:
             return None
 
-    # ═══════════════════════════════════════════════════════
-    # 全量采集
-    # ═══════════════════════════════════════════════════════
+    # ============================================================
+    # Data collection
+    # ============================================================
     def fetch_all(self) -> dict[str, Any]:
         from ..const import API_DEFINITIONS
+
         results: dict[str, Any] = {}
         for name, typ, tag, extra in API_DEFINITIONS:
             r = self.call_api(_type=typ, _tag=tag, **extra)
@@ -221,7 +224,11 @@ class ZTERouterClient:
                         d = {}
                         kids = list(inst)
                         for i in range(0, len(kids), 2):
-                            if kids[i].tag == "ParaName" and i + 1 < len(kids) and kids[i + 1].tag == "ParaValue":
+                            if (
+                                kids[i].tag == "ParaName"
+                                and i + 1 < len(kids)
+                                and kids[i + 1].tag == "ParaValue"
+                            ):
                                 d[kids[i].text] = kids[i + 1].text or ""
                         arr.append(d)
                     out[tag] = arr
@@ -229,20 +236,23 @@ class ZTERouterClient:
         except ET.ParseError:
             return None
 
-    def _safe_get(self, data: Any) -> dict[str, Any]:
+    @staticmethod
+    def _ensure_dict(data: Any) -> dict[str, Any]:
+        """Safely convert parsed data to dict."""
         if isinstance(data, str):
-            return self._parse_xml(data) or {}
+            return ZTERouterClient._parse_xml(data) or {}
         return data if isinstance(data, dict) else {}
 
-    # ═══════════════════════════════════════════════════════
-    # 设备数据 — 含实时速率 + 累计流量
-    # ═══════════════════════════════════════════════════════
+    # ============================================================
+    # Data extraction methods
+    # ============================================================
+
     def get_connected_devices(self) -> list[dict[str, Any]]:
-        """在线设备列表（完整属性 + 实时速率 + 累计流量）"""
+        """Online device list with real-time speed and cumulative traffic."""
         data = self._last_data
         devices: list[dict[str, Any]] = []
 
-        lan = self._safe_get(data.get("lan_info", {}))
+        lan = self._ensure_dict(data.get("lan_info", {}))
         for d in lan.get("OBJ_LAN_INFO_ID", []):
             if d.get("Active") == "1":
                 bytes_recv = int(d.get("BytesReceived", "0"))
@@ -254,7 +264,9 @@ class ZTERouterClient:
                     "mac": d.get("MACAddress", ""),
                     "ip": d.get("IPAddress", ""),
                     "hostname": d.get("HostName") or d.get("DevName") or "Unknown",
-                    "connection_type": "WLAN" if d.get("DirectBand", "0") != "0" else "LAN",
+                    "connection_type": (
+                        "WLAN" if d.get("DirectBand", "0") != "0" else "LAN"
+                    ),
                     "band": d.get("DirectBand", ""),
                     "rssi": d.get("DirectRssi", "0"),
                     "parent_ap": d.get("ParentDeviceName", ""),
@@ -264,12 +276,12 @@ class ZTERouterClient:
                     "mlo_enabled": d.get("MLOEnable") == "1",
                     "inactive_time": d.get("InactiveTime", ""),
                     "link_time": d.get("LinkTime", ""),
-                    # ★ 实时速率
+                    # Real-time speed
                     "download_speed": dl_speed,
                     "upload_speed": ul_speed,
                     "download_speed_str": f"{dl_speed} KB/s",
                     "upload_speed_str": f"{ul_speed} KB/s",
-                    # ★ 累计流量
+                    # Cumulative traffic
                     "bytes_received": bytes_recv,
                     "bytes_sent": bytes_sent,
                     "total_bytes": bytes_recv + bytes_sent,
@@ -278,8 +290,8 @@ class ZTERouterClient:
                     "total_str": _format_bytes(bytes_recv + bytes_sent),
                 })
 
-        # WiFi 客户端补充
-        clients = self._safe_get(data.get("clients_brief", {}))
+        # Supplement from WiFi client data
+        clients = self._ensure_dict(data.get("clients_brief", {}))
         for d in clients.get("OBJ_CLIENTS_ID", []):
             mac = d.get("MACAddress", "")
             if mac and not any(dev["mac"] == mac for dev in devices):
@@ -312,10 +324,10 @@ class ZTERouterClient:
 
     def get_router_info(self) -> dict[str, Any]:
         data = self._last_data
-        hd = self._safe_get(data.get("home_device", {}))
+        hd = self._ensure_dict(data.get("home_device", {}))
         env = (hd.get("OBJ_GLOBAL_ENV") or [{}])[0]
         basic = (hd.get("OBJ_HOME_BASICINFO_ID") or [{}])[0]
-        di = self._safe_get(data.get("device_info", {}))
+        di = self._ensure_dict(data.get("device_info", {}))
         devinfo = (di.get("OBJ_DEVINFO_ID") or [{}])[0] if di else {}
         init = data.get("initial_info", {}) or {}
         dt = init.get("data", {}) if isinstance(init, dict) else {}
@@ -335,15 +347,19 @@ class ZTERouterClient:
             "serial": devinfo.get("SerialNumber", ""),
             "hardware_ver": devinfo.get("HardwareVer", ""),
             "boot_ver": devinfo.get("BootVer", ""),
-            "uptime_hours": int(devinfo.get("UpTime", 0)) // 3600 if devinfo.get("UpTime") else 0,
+            "uptime_hours": (
+                int(devinfo.get("UpTime", 0)) // 3600
+                if devinfo.get("UpTime") else 0
+            ),
             "cpu": dt.get("cpuName", ""),
             "ports": dt.get("DeviceSummary", ""),
         }
 
     def get_wan_info(self) -> dict[str, Any]:
         data = self._last_data
-        wd = self._safe_get(data.get("wan_info", {}))
+        wd = self._ensure_dict(data.get("wan_info", {}))
         wan = (wd.get("OBJ_ETHWANCIP_ID") or [{}])[0] if wd else {}
+        up_time = wan.get("UpTime", "0")
         return {
             "ipv4": wan.get("IPAddress", ""),
             "subnet_mask": wan.get("SubnetMask", ""),
@@ -352,7 +368,7 @@ class ZTERouterClient:
             "mtu": wan.get("MTU", ""),
             "nat": wan.get("IsNAT", ""),
             "mac": wan.get("WorkIFMac", ""),
-            "online_minutes": int(wan.get("UpTime", 0)) // 60 if wan.get("UpTime") else 0,
+            "online_minutes": int(up_time) // 60 if up_time.isdigit() else 0,
             "dns1": wan.get("DNS1", ""),
             "ip_mode": wan.get("IpMode", ""),
             "ipv6_gua": wan.get("Gua1", ""),
@@ -362,9 +378,12 @@ class ZTERouterClient:
 
     def get_wifi_config(self) -> list[dict[str, Any]]:
         data = self._last_data
-        hd = self._safe_get(data.get("home_device", {}))
+        hd = self._ensure_dict(data.get("home_device", {}))
         wifis = []
-        for cat, label in [("OBJ_WLANMAINSSID_ID", "主网络"), ("OBJ_WLANGUESTSSID_ID", "访客网络")]:
+        for cat, label in [
+            ("OBJ_WLANMAINSSID_ID", "main"),
+            ("OBJ_WLANGUESTSSID_ID", "guest"),
+        ]:
             for w in hd.get(cat, []):
                 wifis.append({
                     "type": label,
@@ -394,14 +413,21 @@ class ZTERouterClient:
             except Exception:
                 acl = {}
         if isinstance(acl, dict):
-            return acl.get("data", {}).get("OBJ_ACLCFG_ID") or acl.get("OBJ_ACLCFG_ID") or []
+            return (
+                acl.get("data", {}).get("OBJ_ACLCFG_ID")
+                or acl.get("OBJ_ACLCFG_ID")
+                or []
+            )
         return []
 
     def get_ntp_info(self) -> dict[str, Any]:
         data = self._last_data
-        nt = self._safe_get(data.get("ntp_info", {}))
+        nt = self._ensure_dict(data.get("ntp_info", {}))
         ntp = (nt.get("OBJ_SNTP_ID") or [{}])[0] if nt else {}
-        return {"current_time": ntp.get("CurrentLocalTime", ""), "zone": ntp.get("ZoneIndex", "")}
+        return {
+            "current_time": ntp.get("CurrentLocalTime", ""),
+            "zone": ntp.get("ZoneIndex", ""),
+        }
 
     def get_user_config(self) -> dict[str, Any]:
         data = self._last_data
@@ -415,8 +441,11 @@ class ZTERouterClient:
 
     def get_offline_devices(self) -> list[dict[str, Any]]:
         data = self._last_data
-        lan = self._safe_get(data.get("lan_info", {}))
+        lan = self._ensure_dict(data.get("lan_info", {}))
         devs = lan.get("OBJ_LAN_INFO_ID", [])
-        offline = [d for d in devs if d.get("Active") == "0" and d.get("InactiveTime")]
+        offline = [
+            d for d in devs
+            if d.get("Active") == "0" and d.get("InactiveTime")
+        ]
         offline.sort(key=lambda d: d.get("InactiveTime", ""), reverse=True)
         return offline[:20]
