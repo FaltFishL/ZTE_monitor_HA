@@ -1,4 +1,4 @@
-"""ZTE Monitor HA - 设备追踪实体（名称用 hostname，属性含实时速率+累计流量）"""
+"""ZTE Monitor HA - 设备追踪实体"""
 import logging
 
 from homeassistant.components.device_tracker import ScannerEntity, SourceType
@@ -27,7 +27,7 @@ async def async_setup_entry(
 
 
 class ZTEDeviceTracker(CoordinatorEntity, ScannerEntity):
-    """ZTE 设备追踪实体 — 名称使用 hostname，属性包含完整设备信息+流量数据"""
+    """ZTE 设备追踪实体 — hostname 命名 + 含实时速率和累计流量"""
     _attr_has_entity_name = True
 
     def __init__(self, coordinator, client, entry, device: dict):
@@ -58,6 +58,7 @@ class ZTEDeviceTracker(CoordinatorEntity, ScannerEntity):
 
     @property
     def extra_state_attributes(self):
+        """返回该设备的所有可用信息（含实时速率和累计流量）"""
         try:
             for d in self._client.get_connected_devices():
                 if d["mac"] == self._mac:
@@ -75,16 +76,18 @@ class ZTEDeviceTracker(CoordinatorEntity, ScannerEntity):
                         "mlo_enabled": d.get("mlo_enabled", False),
                         "inactive_time": d.get("inactive_time", ""),
                         "link_time": d.get("link_time", ""),
+                        # 实时速率
                         "download_speed": d.get("download_speed", 0),
                         "upload_speed": d.get("upload_speed", 0),
-                        "download_speed_str": d.get("download_speed_str", "0"),
-                        "upload_speed_str": d.get("upload_speed_str", "0"),
+                        "download_speed_str": d.get("download_speed_str", "0 KB/s"),
+                        "upload_speed_str": d.get("upload_speed_str", "0 KB/s"),
+                        # 累计流量
                         "bytes_received": d.get("bytes_received", 0),
                         "bytes_sent": d.get("bytes_sent", 0),
-                        "bytes_total": d.get("bytes_total", 0),
-                        "bytes_received_str": d.get("bytes_received_str", "0 B"),
-                        "bytes_sent_str": d.get("bytes_sent_str", "0 B"),
-                        "bytes_total_str": d.get("bytes_total_str", "0 B"),
+                        "total_bytes": d.get("total_bytes", 0),
+                        "download_str": d.get("download_str", "0 B"),
+                        "upload_str": d.get("upload_str", "0 B"),
+                        "total_str": d.get("total_str", "0 B"),
                     }
         except Exception:
             pass
