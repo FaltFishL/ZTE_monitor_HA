@@ -49,7 +49,7 @@ class ZTERouterClient:
         return hashlib.sha256(text.encode()).hexdigest()
 
     # ═══════════════════════════════════════════════════════
-    # 登录 — 三步流程（你的测试已验证 [4][5]）
+    # 登录 — 三步流程（修正判定：loginErrType 为空即成功）
     # ═══════════════════════════════════════════════════════
     def login(self) -> bool:
         """三步加密登录，成功后 SID 自动写入 self.sess.cookies"""
@@ -116,12 +116,24 @@ class ZTERouterClient:
             timeout=15,
         )
 
+        # ── 解析登录结果 ──
         try:
             resp = r.json()
         except Exception:
             return False
 
-        # 成功标识：result=="0" 或 login_need_refresh 存在
+        err_type = resp.get("loginErrType", "")
+        err_msg = resp.get("loginErrMsg", "")
+
+        # ✅ 成功：loginErrType 和 loginErrMsg 均为空字符串 [4]
+        if err_type == "" and err_msg == "":
+            self._login_time = time.time()
+            for c in self.sess.cookies:
+                if c.name in ("SID", "SID_HTTPS_"):
+                    self._sid = c.value
+            return True
+
+        # 兼容旧格式：result=="0" 或 login_need_refresh 存在
         if resp.get("result") == "0" or resp.get("login_need_refresh") is not None:
             self._login_time = time.time()
             for c in self.sess.cookies:
@@ -129,8 +141,8 @@ class ZTERouterClient:
                     self._sid = c.value
             return True
 
-        err_type = resp.get("loginErrType", "")
-        return False if err_type else False
+        # ❌ 失败：有具体错误类型
+        return False
 
     def logout(self) -> None:
         try:
