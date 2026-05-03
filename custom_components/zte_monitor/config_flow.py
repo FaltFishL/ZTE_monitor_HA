@@ -40,9 +40,8 @@ class ZTEMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_USERNAME, default=DEFAULT_USERNAME): str,
                 vol.Required(CONF_PASSWORD): str,
                 vol.Required(CONF_MODEL, default=DEFAULT_MODEL): vol.In([
-                    "SR7410", "F6640", "F6645P", "F680", "F6600P",
-                    "H169A", "H2640", "H288A", "H388X",
-                    "H3600P", "H3640", "H6645P", "AX3000", "E2631",
+                    "SR7410",    # ZTE BE7200 Pro+ — 实测通过
+                    "SR1010",    # ZTE ZXSLC SR1010 — 实测通过
                 ]),
             }),
             errors=errors,
