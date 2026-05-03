@@ -8,7 +8,7 @@ import requests
 
 
 class ZTERouterClient:
-    """ZTE 路由器 HTTP 客户端（与 zte_tracker 登录逻辑一致）"""
+    """ZTE 路由器 HTTP 客户端"""
 
     def __init__(
         self,
@@ -45,7 +45,6 @@ class ZTERouterClient:
         })
 
     def _guid(self) -> int:
-        """递增 GUID，与 zte_tracker 一致"""
         g = self._guid_counter
         self._guid_counter += 1
         return g
@@ -55,16 +54,12 @@ class ZTERouterClient:
         return hashlib.sha256(text.encode()).hexdigest()
 
     # ═══════════════════════════════════════════════════════
-    # 登录 — 与 zte_tracker 完全一致
+    # 登录
     # ═══════════════════════════════════════════════════════
     def login(self) -> bool:
-        """
-        登录流程（与 zte_tracker SR7410/E2631 一致）:
-          1. GET loginData&_tag=login_entry → JSON → sess_token
-          2. GET loginData&_tag=login_token → XML  → login_token
-          3. POST loginData&_tag=login_entry → SHA256(password+login_token)
-        """
-        # ── 第 1 步：GET login_entry 获取 sess_token ──
+        self._login_token = ""
+        self._session_token = ""
+
         try:
             r = self.sess.get(
                 f"{self.base}/",
@@ -73,8 +68,7 @@ class ZTERouterClient:
                 timeout=10,
             )
             data = r.json()
-            locking = data.get("lockingTime", 1)
-            if locking != 0:
+            if data.get("lockingTime", 1) != 0:
                 return False
             self._session_token = data.get("sess_token", "")
             if not self._session_token:
@@ -82,15 +76,10 @@ class ZTERouterClient:
         except Exception:
             return False
 
-        # ── 第 2 步：GET login_token 获取 XML 中的 login_token ──
         try:
             r = self.sess.get(
                 f"{self.base}/",
-                params={
-                    "_type": "loginData",
-                    "_tag": "login_token",
-                    "_": self._guid(),
-                },
+                params={"_type": "loginData", "_tag": "login_token", "_": self._guid()},
                 headers={"Referer": f"{self.base}/"},
                 timeout=10,
             )
@@ -103,7 +92,6 @@ class ZTERouterClient:
         except Exception:
             return False
 
-        # ── 第 3 步：POST login_entry → SHA256(密码 + login_token) ──
         pass_hash = self._sha256(self.password + self._login_token)
         try:
             r = self.sess.post(
@@ -125,7 +113,6 @@ class ZTERouterClient:
         except Exception:
             return False
 
-        # ── 成功判定（与 zte_tracker 一致） ──
         locking = resp.get("lockingTime", 0)
         if locking == -1 or locking > 0:
             return False
@@ -133,7 +120,6 @@ class ZTERouterClient:
         if err_msg and "password" in err_msg.lower():
             return False
 
-        # 登录成功
         self._login_time = time.time()
         for c in self.sess.cookies:
             if c.name in ("SID", "SID_HTTPS_"):
@@ -178,7 +164,7 @@ class ZTERouterClient:
             return None
 
     # ═══════════════════════════════════════════════════════
-    # 全量采集 — 使用 E2631/SR7410 的 vueData API
+    # 全量采集
     # ═══════════════════════════════════════════════════════
     def fetch_all(self) -> dict[str, Any]:
         from ..const import API_DEFINITIONS
@@ -226,17 +212,22 @@ class ZTERouterClient:
         except ET.ParseError:
             return None
 
+    def _safe_get(self, data: Any) -> dict[str, Any]:
+        """安全转换数据为 dict"""
+        if isinstance(data, str):
+            return self._parse_xml(data) or {}
+        return data if isinstance(data, dict) else {}
+
     # ═══════════════════════════════════════════════════════
-    # 数据提取 — SR7410 使用 E2631 的 OBJ_LAN_INFO_ID 和 OBJ_CLIENTS_ID
+    # 数据提取方法
     # ═══════════════════════════════════════════════════════
+
     def get_connected_devices(self) -> list[dict[str, Any]]:
+        """在线设备列表（完整属性）"""
         data = self._last_data
         devices: list[dict[str, Any]] = []
 
-        # LAN 设备: OBJ_LAN_INFO_ID
-        lan = data.get("lan_info", {})
-        if isinstance(lan, str):
-            lan = self._parse_xml(lan) or {}
+        lan = self._safe_get(data.get("lan_info", {}))
         for d in lan.get("OBJ_LAN_INFO_ID", []):
             if d.get("Active") == "1":
                 devices.append({
@@ -247,15 +238,16 @@ class ZTERouterClient:
                     "band": d.get("DirectBand", ""),
                     "rssi": d.get("DirectRssi", "0"),
                     "parent_ap": d.get("ParentDeviceName", ""),
+                    "interface": d.get("IFAliasName", ""),
                     "brand": d.get("Brand", ""),
                     "model": d.get("Model", ""),
                     "mlo_enabled": d.get("MLOEnable") == "1",
+                    "inactive_time": d.get("InactiveTime", ""),
+                    "link_time": d.get("LinkTime", ""),
                 })
 
-        # WiFi 客户端: OBJ_CLIENTS_ID
-        clients = data.get("clients_brief", {})
-        if isinstance(clients, str):
-            clients = self._parse_xml(clients) or {}
+        # WiFi 客户端补充
+        clients = self._safe_get(data.get("clients_brief", {}))
         for d in clients.get("OBJ_CLIENTS_ID", []):
             mac = d.get("MACAddress", "")
             if mac and not any(dev["mac"] == mac for dev in devices):
@@ -267,41 +259,140 @@ class ZTERouterClient:
                     "band": d.get("Band", ""),
                     "rssi": d.get("RSSI", "0"),
                     "parent_ap": d.get("ParentAP", ""),
+                    "interface": "",
                     "brand": "",
                     "model": "",
                     "mlo_enabled": False,
+                    "inactive_time": "",
+                    "link_time": "",
                 })
-
         return devices
 
     def get_router_info(self) -> dict[str, Any]:
+        """路由器基础信息（所有属性）"""
         data = self._last_data
-        hd = data.get("home_device", {})
-        if isinstance(hd, str):
-            hd = self._parse_xml(hd) or {}
+        hd = self._safe_get(data.get("home_device", {}))
         env = (hd.get("OBJ_GLOBAL_ENV") or [{}])[0]
         basic = (hd.get("OBJ_HOME_BASICINFO_ID") or [{}])[0]
-        di = data.get("device_info", {})
-        if isinstance(di, str):
-            di = self._parse_xml(di) or {}
+
+        di = self._safe_get(data.get("device_info", {}))
         devinfo = (di.get("OBJ_DEVINFO_ID") or [{}])[0] if di else {}
+
+        init = data.get("initial_info", {}) or {}
+        dt = init.get("data", {}) if isinstance(init, dict) else {}
+
         return {
             "title": (env.get("WEBTitle") or "").replace("&#32;", " "),
             "firmware": env.get("SoftwareVer", ""),
+            "mode": env.get("Mode", ""),
+            "mesh_enabled": env.get("MeshEnable", ""),
+            "dual_band_sync": basic.get("DualBandSync", ""),
+            "mlo_enabled": basic.get("MLOEnable", ""),
+            "wan_speed": basic.get("WANSpeed", ""),
+            "connected_count": basic.get("AccessDevNum", ""),
+            "ap_count": basic.get("TopoAPNum", ""),
+            "wan_status": basic.get("WANStatus", ""),
+            "wan_up_rate": basic.get("WANUpRate", ""),
+            "wan_down_rate": basic.get("WANDownRate", ""),
+            "manufacturer": devinfo.get("ManuFacturer", ""),
             "model_name": (devinfo.get("ModelName") or "").replace("&#32;", " "),
             "serial": devinfo.get("SerialNumber", ""),
+            "hardware_ver": devinfo.get("HardwareVer", ""),
+            "boot_ver": devinfo.get("BootVer", ""),
             "uptime_hours": int(devinfo.get("UpTime", 0)) // 3600 if devinfo.get("UpTime") else 0,
-            "connected_count": basic.get("AccessDevNum", ""),
+            "cpu": dt.get("cpuName", ""),
+            "ports": dt.get("DeviceSummary", ""),
         }
 
     def get_wan_info(self) -> dict[str, Any]:
+        """WAN 连接信息"""
         data = self._last_data
-        wd = data.get("wan_info", {})
-        if isinstance(wd, str):
-            wd = self._parse_xml(wd) or {}
+        wd = self._safe_get(data.get("wan_info", {}))
         wan = (wd.get("OBJ_ETHWANCIP_ID") or [{}])[0] if wd else {}
         return {
             "ipv4": wan.get("IPAddress", ""),
+            "subnet_mask": wan.get("SubnetMask", ""),
             "gateway": wan.get("GateWay", ""),
-            "online_min": int(wan.get("UpTime", 0)) // 60 if wan.get("UpTime") else 0,
+            "mode": wan.get("WANCName", ""),
+            "mtu": wan.get("MTU", ""),
+            "nat": wan.get("IsNAT", ""),
+            "mac": wan.get("WorkIFMac", ""),
+            "online_minutes": int(wan.get("UpTime", 0)) // 60 if wan.get("UpTime") else 0,
+            "dns1": wan.get("DNS1", ""),
+            "overridden_dns": wan.get("OverridedDNS1", ""),
+            "ip_mode": wan.get("IpMode", ""),
+            "ipv6_gua": wan.get("Gua1", ""),
+            "ipv6_pd": wan.get("Pd", ""),
+            "ipv6_dns": wan.get("Dns1v6", ""),
+            "ipv6_overridden_dns": wan.get("OverridedDns1v6", ""),
         }
+
+    def get_wifi_config(self) -> list[dict[str, Any]]:
+        """WiFi 主网络 + 访客网络配置"""
+        data = self._last_data
+        hd = self._safe_get(data.get("home_device", {}))
+        wifis = []
+        for cat, label in [("OBJ_WLANMAINSSID_ID", "主网络"), ("OBJ_WLANGUESTSSID_ID", "访客网络")]:
+            for w in hd.get(cat, []):
+                wifis.append({
+                    "type": label,
+                    "band": w.get("CardBand", ""),
+                    "ssid": w.get("ESSID", ""),
+                    "beacon_type": w.get("BeaconType", ""),
+                    "encryption": w.get("EncrypType", ""),
+                })
+        return wifis
+
+    def get_mesh_topo(self) -> dict[str, Any]:
+        """Mesh 组网拓扑"""
+        data = self._last_data
+        topo = data.get("mesh_topo", {})
+        if isinstance(topo, str):
+            try:
+                topo = _json.loads(topo)
+            except Exception:
+                topo = {}
+        return topo if isinstance(topo, dict) else {}
+
+    def get_acl_rules(self) -> list[dict[str, Any]]:
+        """ACL 访问控制规则"""
+        data = self._last_data
+        acl = data.get("acl_rules", {})
+        if isinstance(acl, str):
+            try:
+                acl = _json.loads(acl)
+            except Exception:
+                acl = {}
+        if isinstance(acl, dict):
+            return acl.get("data", {}).get("OBJ_ACLCFG_ID") or acl.get("OBJ_ACLCFG_ID") or []
+        return []
+
+    def get_ntp_info(self) -> dict[str, Any]:
+        """NTP 时间信息"""
+        data = self._last_data
+        nt = self._safe_get(data.get("ntp_info", {}))
+        ntp = (nt.get("OBJ_SNTP_ID") or [{}])[0] if nt else {}
+        return {
+            "current_time": ntp.get("CurrentLocalTime", ""),
+            "zone": ntp.get("ZoneIndex", ""),
+        }
+
+    def get_user_config(self) -> dict[str, Any]:
+        """用户配置"""
+        data = self._last_data
+        uc = data.get("user_config", {})
+        if isinstance(uc, str):
+            try:
+                uc = _json.loads(uc)
+            except Exception:
+                uc = {}
+        return uc if isinstance(uc, dict) else {}
+
+    def get_offline_devices(self) -> list[dict[str, Any]]:
+        """最近离线设备"""
+        data = self._last_data
+        lan = self._safe_get(data.get("lan_info", {}))
+        devs = lan.get("OBJ_LAN_INFO_ID", [])
+        offline = [d for d in devs if d.get("Active") == "0" and d.get("InactiveTime")]
+        offline.sort(key=lambda d: d.get("InactiveTime", ""), reverse=True)
+        return offline[:20]
