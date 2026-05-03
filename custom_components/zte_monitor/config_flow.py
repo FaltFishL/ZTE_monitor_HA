@@ -1,38 +1,26 @@
 """ZTE Monitor HA - Config Flow"""
 import voluptuous as vol
-
 from homeassistant import config_entries
 
 from .const import (
-    DOMAIN,
-    CONF_HOST,
-    CONF_USERNAME,
-    CONF_PASSWORD,
-    CONF_MODEL,
-    DEFAULT_HOST,
-    DEFAULT_USERNAME,
-    DEFAULT_MODEL,
+    DOMAIN, CONF_HOST, CONF_USERNAME, CONF_PASSWORD, CONF_MODEL,
+    DEFAULT_HOST, DEFAULT_USERNAME, DEFAULT_MODEL,
 )
 
 
 class ZTEMonitorConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """UI 配置流程"""
-
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
         errors = {}
-
         if user_input is not None:
             from .zteclient.zte_client import ZTERouterClient
-
             client = ZTERouterClient(
                 host=user_input[CONF_HOST],
                 username=user_input[CONF_USERNAME],
                 password=user_input[CONF_PASSWORD],
                 reuse_session=False,
             )
-
             try:
                 auth_ok = await self.hass.async_add_executor_job(client.login)
                 if auth_ok:
