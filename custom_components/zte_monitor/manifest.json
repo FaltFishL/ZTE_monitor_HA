@@ -4,10 +4,10 @@
   "codeowners": ["@你的GitHub用户名"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/你的GitHub用户名/ZTE_monitor_HA",
+  "documentation": "https://github.com/你的用户名/ZTE_monitor_HA",
   "integration_type": "hub",
   "iot_class": "local_polling",
-  "issue_tracker": "https://github.com/你的GitHub用户名/ZTE_monitor_HA/issues",
+  "issue_tracker": "https://github.com/你的用户名/ZTE_monitor_HA/issues",
   "requirements": ["requests"],
   "version": "1.0.0"
 }
