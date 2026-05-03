@@ -19,19 +19,13 @@ async def async_setup_entry(
     client = hass.data[DOMAIN][entry.entry_id]["client"]
 
     entities = [
-        # 核心传感器
         ZTERouterStatusSensor(coordinator, client, entry),
         ZTEConnectedDevicesCountSensor(coordinator, client, entry),
         ZTEWANStatusSensor(coordinator, client, entry),
-        # WiFi 配置
         ZTEWiFiConfigSensor(coordinator, client, entry),
-        # Mesh 拓扑
         ZTEMeshTopoSensor(coordinator, client, entry),
-        # ACL 规则
         ZTEACLRulesSensor(coordinator, client, entry),
-        # NTP 时间
         ZTENTPTimeSensor(coordinator, client, entry),
-        # 用户配置
         ZTEUserConfigSensor(coordinator, client, entry),
     ]
     async_add_entities(entities)
@@ -64,7 +58,7 @@ class ZTERouterStatusSensor(CoordinatorEntity, SensorEntity):
 
 
 class ZTEConnectedDevicesCountSensor(CoordinatorEntity, SensorEntity):
-    """在线设备数量传感器 — 属性包含完整设备列表"""
+    """在线设备数量传感器 — 属性包含完整设备列表含流量数据"""
     _attr_has_entity_name = True
     _attr_native_unit_of_measurement = "台"
     _attr_icon = "mdi:devices"
